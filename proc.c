@@ -367,30 +367,39 @@ scheduler(void)
           if(p->state != RUNNABLE)
               continue;
 
-          if(p->prior_val != highest_prior_val){
-              if (p->prior_val > 0) {
-                  p->prior_val--;
+          if(p->prior_val == highest_prior_val){
+              // Switch to chosen process.  It is the process's job
+              // to release ptable.lock and then reacquire it
+              // before jumping back to us.
+              c->proc = p;
+              switchuvm(p);
+              p->state = RUNNING;
+
+              swtch(&(c->scheduler), p->context);
+              switchkvm();
+
+              // Process is done running for now.
+              // It should have changed its p->state before coming back.
+              c->proc = 0;
+
+              if (p->prior_val < 31) {
+                  p->prior_val += 1;
               }
-              continue;
+              acquire(&tickslock);
+              int current_ticks = ticks;
+              if (current_ticks > p->last_burst_time_ticks) {
+                  p->burst_time += 1;
+                  p->last_burst_time_ticks = current_ticks;
+              }
+              release(&tickslock);
+          }
+          else {
+              if (p->prior_val > 0) {
+                  p->prior_val -= 1;
+              }
           }
 
-          // Switch to chosen process.  It is the process's job
-          // to release ptable.lock and then reacquire it
-          // before jumping back to us.
-          c->proc = p;
-          switchuvm(p);
-          p->state = RUNNING;
 
-          swtch(&(c->scheduler), p->context);
-          switchkvm();
-
-          // Process is done running for now.
-          // It should have changed its p->state before coming back.
-          c->proc = 0;
-
-          if (p->prior_val < 31) {
-              p->prior_val += 1;
-          }
 
       }
 

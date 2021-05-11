@@ -8,7 +8,7 @@
 
 int main (int argc, char** argv) {
 
-    printf(1, "proc 1 (pid: %d)\n", getpid());
+    printf(1, "proc 1 (pid: %d, priority: %d)\n", getpid(), 1);
 
     set_prior(1);
     int i,k;

@@ -7,7 +7,8 @@
 #include "user.h"
 
 int main (int argc, char** argv) {
-    printf(1, "proc 3 (pid: %d)\n", getpid());
+
+    printf(1, "proc 3 (pid: %d, priority: %d)\n", getpid(), 28);
 
     set_prior(28);
     int i,k;
