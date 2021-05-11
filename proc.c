@@ -88,6 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->prior_val = 0;                 //!! initialize priority value
 
   release(&ptable.lock);
 
@@ -215,6 +216,7 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  np->prior_val = curproc->prior_val; //!! inherit the parent's priority value
 
   release(&ptable.lock);
 
@@ -230,6 +232,17 @@ exit(void)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
+
+  int turnaround_time;
+    acquire(&tickslock);
+    turnaround_time = ticks - curproc->start_time;
+    release(&tickslock);
+
+    cprintf("\n");
+    cprintf("pid: %d\n", curproc->pid);
+    cprintf("Turnaround time: %d\n", turnaround_time);
+    cprintf("Waiting time = turnaround - burst = %d - %d = %d\n", turnaround_time, curproc->burst_time,turnaround_time - curproc->burst_time);
+    cprintf("\n");
 
   if(curproc == initproc)
     panic("init exiting");
@@ -332,24 +345,72 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+
+    //store highest priority process found here
+    struct proc* cur = ptable.proc;
+    int highest_prior_val = 31;
+
+    //Loop over process table
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+
+        //find RUNNABLE proc with the highest priority;
+      if (p->state == RUNNABLE) {
+          if (p->prior_val < highest_prior_val) {
+              cur = p;
+              highest_prior_val = p->prior_val;
+          }
+      }
+
+    }
+
+
+    //The chosen RUNNABLE process acquires CPU resources and start RUNNING;
+
+    //last_burst_time_ticks
+
+
+      acquire(&tickslock);
+
+      /*
+      "2> in scheduler() function, update burst time counter
+      only when global ticks is larger than last time burst counter is updated"
+       */
+      int current_ticks = ticks;
+      if (current_ticks > cur->last_burst_time_ticks) {
+          cur->burst_time += 1;
+          cur->last_burst_time_ticks = current_ticks;
+      }
+
+      release(&tickslock);
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+      c->proc = cur;
+      switchuvm(cur);
+      cur->state = RUNNING;
 
-      swtch(&(c->scheduler), p->context);
+      swtch(&(c->scheduler), cur->context);
       switchkvm();
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
-    }
+
+      //Aging of priority
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+
+          if (p != cur) {
+              int x = (p->prior_val - 1);
+              x = (x > 0) ? x : -x; //ensure x is positive
+              p->prior_val = x % 32;
+          }
+          else {
+              p->prior_val = (p->prior_val + 1) % 32;
+          }
+
+      }
+
     release(&ptable.lock);
 
   }
@@ -531,4 +592,17 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+//!!
+int
+set_prior(int prior_val) {
+    struct proc *curproc = myproc();
+
+    if (prior_val >= 0 && prior_val <= 31) {
+        curproc->prior_val = prior_val;
+        yield();
+    }
+
+    return -1;
 }
