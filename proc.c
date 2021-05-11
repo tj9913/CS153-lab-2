@@ -38,10 +38,10 @@ struct cpu*
 mycpu(void)
 {
   int apicid, i;
-  
+
   if(readeflags()&FL_IF)
     panic("mycpu called with interrupts enabled\n");
-  
+
   apicid = lapicid();
   // APIC IDs are not guaranteed to be contiguous. Maybe we should have
   // a reverse map, or reserve a register to store &cpus[i].
@@ -125,7 +125,7 @@ userinit(void)
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   p = allocproc();
-  
+
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
@@ -288,7 +288,7 @@ wait(void)
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
-  
+
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for exited children.
@@ -338,7 +338,7 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -347,69 +347,55 @@ scheduler(void)
     acquire(&ptable.lock);
 
     //store highest priority process found here
-    struct proc* cur = ptable.proc;
     int highest_prior_val = 31;
 
     //Loop over process table
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
 
         //find RUNNABLE proc with the highest priority;
-      if (p->state == RUNNABLE) {
-          if (p->prior_val < highest_prior_val) {
-              cur = p;
-              highest_prior_val = p->prior_val;
-          }
-      }
+          if (p->state == RUNNABLE) {
+              if (p->prior_val < highest_prior_val) {
+                  highest_prior_val = p->prior_val;
 
+              }
+          }
     }
 
 
-    //The chosen RUNNABLE process acquires CPU resources and start RUNNING;
-
-    //last_burst_time_ticks
-
-
-      acquire(&tickslock);
-
-      /*
-      "2> in scheduler() function, update burst time counter
-      only when global ticks is larger than last time burst counter is updated"
-       */
-      int current_ticks = ticks;
-      if (current_ticks > cur->last_burst_time_ticks) {
-          cur->burst_time += 1;
-          cur->last_burst_time_ticks = current_ticks;
-      }
-
-      release(&tickslock);
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = cur;
-      switchuvm(cur);
-      cur->state = RUNNING;
-
-      swtch(&(c->scheduler), cur->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
-
-      //Aging of priority
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
 
-          if (p != cur) {
-              int x = (p->prior_val - 1);
-              x = (x > 0) ? x : -x; //ensure x is positive
-              p->prior_val = x % 32;
+          if(p->state != RUNNABLE)
+              continue;
+
+          if(p->prior_val != highest_prior_val){
+              if (p->prior_val > 0) {
+                  p->prior_val--;
+              }
+              continue;
           }
-          else {
-              p->prior_val = (p->prior_val + 1) % 32;
+
+          // Switch to chosen process.  It is the process's job
+          // to release ptable.lock and then reacquire it
+          // before jumping back to us.
+          c->proc = p;
+          switchuvm(p);
+          p->state = RUNNING;
+
+          swtch(&(c->scheduler), p->context);
+          switchkvm();
+
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;
+
+          if (p->prior_val < 31) {
+              p->prior_val += 1;
           }
 
       }
+
+
+
 
     release(&ptable.lock);
 
@@ -479,7 +465,7 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
-  
+
   if(p == 0)
     panic("sleep");
 

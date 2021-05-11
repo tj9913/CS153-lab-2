@@ -11,7 +11,7 @@
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
         <option name="modules">
           <set>
-            <option value="E:\Other\CS153\lab2" />
+            <option value="E:\Other\CS153\lab2-new" />
           </set>
         </option>
         <option name="switches" value="--just-print --print-directory --keep-going" />

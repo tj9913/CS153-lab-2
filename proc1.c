@@ -9,6 +9,7 @@
 int main (int argc, char** argv) {
 
     printf(1, "proc 1 (pid: %d)\n", getpid());
+
     set_prior(1);
     int i,k;
     for (i = 0; i < 43000; ++i) {

@@ -5,7 +5,7 @@
       <paths name="sledge">
         <serverdata>
           <mappings>
-            <mapping deploy="/lab2" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/lab2-new" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
